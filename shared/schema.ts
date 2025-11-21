@@ -31,7 +31,10 @@ export const messages = pgTable("messages", {
   senderId: varchar("sender_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   receiverId: varchar("receiver_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
   itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: 'cascade' }),
-  messageText: text("message_text").notNull(),
+  messageText: text("message_text"),
+  fileUrl: text("file_url"),
+  fileType: text("file_type"),
+  fileName: text("file_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -79,6 +82,14 @@ export const insertItemSchema = createInsertSchema(items).omit({
 export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
   createdAt: true,
+}).refine((data) => {
+  // Ensure at least one of messageText or fileUrl is present and not empty
+  const hasText = data.messageText && data.messageText.trim().length > 0;
+  const hasFile = data.fileUrl && data.fileUrl.trim().length > 0;
+  return hasText || hasFile;
+}, {
+  message: 'Either messageText or fileUrl must be provided',
+  path: ['messageText'],
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
