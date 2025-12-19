@@ -11,6 +11,8 @@ import Dashboard from "@/pages/Dashboard";
 import AddItem from "@/pages/AddItem";
 import ItemDetails from "@/pages/ItemDetails";
 import Messages from "@/pages/Messages";
+import Cart from "@/pages/Cart";
+import Wishlist from "@/pages/Wishlist";
 import NotFound from "@/pages/not-found";
 
 function HomeRedirect() {
@@ -38,6 +40,16 @@ function Router() {
       <Route path="/messages">
         <ProtectedRoute>
           <Messages />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/cart">
+        <ProtectedRoute>
+          <Cart />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/wishlist">
+        <ProtectedRoute>
+          <Wishlist />
         </ProtectedRoute>
       </Route>
       <Route component={NotFound} />

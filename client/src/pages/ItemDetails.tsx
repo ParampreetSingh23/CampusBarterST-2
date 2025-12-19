@@ -11,7 +11,7 @@ import { Navbar } from '@/components/Navbar';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { ArrowLeft, Send, User as UserIcon, Calendar, Tag } from 'lucide-react';
+import { ArrowLeft, Send, User as UserIcon, Calendar, Tag, ShoppingCart, Heart } from 'lucide-react';
 import { Item, User, Message } from '@shared/schema';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -30,6 +30,48 @@ export default function ItemDetails() {
   const { data: messages, isLoading: messagesLoading } = useQuery<(Message & { sender: User })[]>({
     queryKey: ['/api/messages', params?.id],
     enabled: !!params?.id,
+  });
+
+  const addToCartMutation = useMutation({
+    mutationFn: async () => {
+      if (!item) return;
+      await apiRequest('POST', '/api/cart', { itemId: item.id });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cart'] });
+      toast({
+        title: "Added to Cart",
+        description: "Item has been added to your cart.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to add item to cart. It might already be there.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const addToWishlistMutation = useMutation({
+    mutationFn: async () => {
+      if (!item) return;
+      await apiRequest('POST', '/api/wishlist', { itemId: item.id });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/wishlist'] });
+      toast({
+        title: "Added to Wishlist",
+        description: "Item has been added to your wishlist.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to add item to wishlist. It might already be there.",
+        variant: "destructive",
+      });
+    }
   });
 
   const sendMessageMutation = useMutation({
@@ -115,10 +157,10 @@ export default function ItemDetails() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="container mx-auto px-6 py-8 max-w-6xl">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           className="mb-6 -ml-3"
           onClick={() => setLocation('/dashboard')}
           data-testid="button-back"
@@ -136,7 +178,7 @@ export default function ItemDetails() {
                 className="object-cover w-full h-full"
                 data-testid="img-item"
               />
-              <Badge 
+              <Badge
                 className="absolute top-4 right-4"
                 variant={item.itemType === 'barter' ? 'default' : 'secondary'}
                 data-testid="badge-type"
@@ -185,6 +227,28 @@ export default function ItemDetails() {
                   <p className="text-lg font-semibold" data-testid="text-exchange">
                     {item.expectedExchange}
                   </p>
+                </div>
+              )}
+
+              {!isOwnItem && (
+                <div className="flex gap-3 mb-6">
+                  <Button
+                    className="flex-1 gap-2"
+                    onClick={() => addToCartMutation.mutate()}
+                    disabled={addToCartMutation.isPending}
+                  >
+                    <ShoppingCart className="h-5 w-5" />
+                    Add to Cart
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => addToWishlistMutation.mutate()}
+                    disabled={addToWishlistMutation.isPending}
+                  >
+                    <Heart className="h-5 w-5" />
+                    Wishlist
+                  </Button>
                 </div>
               )}
             </div>
@@ -246,11 +310,10 @@ export default function ItemDetails() {
                         className={`flex gap-2 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}
                       >
                         <div
-                          className={`rounded-lg p-3 max-w-[80%] ${
-                            msg.senderId === user?.id
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted'
-                          }`}
+                          className={`rounded-lg p-3 max-w-[80%] ${msg.senderId === user?.id
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted'
+                            }`}
                           data-testid={`message-${msg.id}`}
                         >
                           <p className="text-sm">{msg.messageText}</p>

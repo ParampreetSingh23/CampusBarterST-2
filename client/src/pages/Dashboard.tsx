@@ -27,13 +27,14 @@ export default function Dashboard() {
   const filteredItems = items?.filter((item) => {
     const typeMatch = filterType === 'all' || item.itemType === filterType;
     const categoryMatch = category === 'All' || item.category === category;
-    return typeMatch && categoryMatch;
+    const notSold = !item.isSold;
+    return typeMatch && categoryMatch && notSold;
   }) || [];
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="container mx-auto px-6 py-8 max-w-7xl">
         <div className="mb-8">
           <h1 className="font-heading text-4xl font-bold mb-2" data-testid="text-page-title">
@@ -98,7 +99,7 @@ export default function Dashboard() {
             </div>
             <h3 className="font-heading text-2xl font-semibold mb-2">No items found</h3>
             <p className="text-muted-foreground mb-6 max-w-sm">
-              {filterType === 'all' 
+              {filterType === 'all'
                 ? "Be the first to post an item on the marketplace!"
                 : `No items available for ${filterType === 'barter' ? 'barter' : 'sale'} in this category.`
               }

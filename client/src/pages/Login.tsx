@@ -17,6 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
+import { GoogleLogin } from '@react-oauth/google';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -60,6 +61,28 @@ export default function Login() {
     },
   });
 
+  const googleLoginMutation = useMutation({
+    mutationFn: async (credential: string) => {
+      const res = await apiRequest('POST', '/api/auth/google', { token: credential });
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      login(data.token, data.user);
+      toast({
+        title: 'Welcome back!',
+        description: 'You have successfully logged in with Google.',
+      });
+      setLocation('/dashboard');
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Login failed',
+        description: error.message || 'Google sign in failed.',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const onSubmit = (data: LoginFormValues) => {
     loginMutation.mutate(data);
   };
@@ -87,11 +110,11 @@ export default function Login() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="you@college.edu" 
+                        <Input
+                          placeholder="you@college.edu"
                           type="email"
                           data-testid="input-email"
-                          {...field} 
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
@@ -106,11 +129,11 @@ export default function Login() {
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="••••••••" 
+                        <Input
+                          placeholder="••••••••"
                           type="password"
                           data-testid="input-password"
-                          {...field} 
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
@@ -118,8 +141,8 @@ export default function Login() {
                   )}
                 />
 
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="w-full"
                   disabled={loginMutation.isPending}
                   data-testid="button-submit"
@@ -128,6 +151,44 @@ export default function Login() {
                 </Button>
               </form>
             </Form>
+
+            <div className="mt-4">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-center flex-col items-center gap-2">
+                {!import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
+                  <div className="text-sm text-destructive font-medium text-center bg-red-50 p-2 rounded w-full border border-red-200">
+                    Configuration Error: Missing Google Client ID.
+                    <br />
+                    <span className="text-xs font-normal text-muted-foreground">Please set VITE_GOOGLE_CLIENT_ID in .env</span>
+                  </div>
+                ) : (
+                  <GoogleLogin
+                    onSuccess={credentialResponse => {
+                      if (credentialResponse.credential) {
+                        googleLoginMutation.mutate(credentialResponse.credential);
+                      }
+                    }}
+                    onError={() => {
+                      toast({
+                        title: 'Login Failed',
+                        description: 'Google login was unsuccessful.',
+                        variant: 'destructive'
+                      });
+                    }}
+                  />
+                )}
+              </div>
+            </div>
 
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">

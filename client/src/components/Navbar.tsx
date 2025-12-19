@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, MessageSquare, LogOut } from 'lucide-react';
+import { Plus, MessageSquare, LogOut, ShoppingCart, Heart } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
 export function Navbar() {
@@ -31,18 +31,36 @@ export function Navbar() {
         </Link>
 
         <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setLocation('/messages')}
             data-testid="button-messages"
           >
             <MessageSquare className="h-5 w-5" />
           </Button>
-          
-          <Button 
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setLocation('/wishlist')}
+            data-testid="button-wishlist"
+          >
+            <Heart className="h-5 w-5" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setLocation('/cart')}
+            data-testid="button-cart"
+          >
+            <ShoppingCart className="h-5 w-5" />
+          </Button>
+
+          <Button
             onClick={() => setLocation('/items/new')}
-            data-testid="button-post-item" 
+            data-testid="button-post-item"
             className="gap-2"
           >
             <Plus className="h-4 w-4" />
