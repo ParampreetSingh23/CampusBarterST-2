@@ -1,0 +1,110 @@
+Hey! 👋 Welcome to your friend's coding project.
+
+This is a step-by-step guide to help you run this website on your own computer. Don't worry if you've never done this before—verify it's simpler than it looks!
+
+We are going to do three main things:
+1. Install the tools you need.
+2. Download the "parts" (dependencies) for the website.
+3. Turn on the engine (start the server).
+
+---
+
+### Step 1: Install the Tools 🛠️
+
+You need two free programs to run this:
+
+1. **Node.js**: This is the engine that runs the code.
+   - Go to: https://nodejs.org/
+   - Download the **LTS** version (Left button, usually recommends for most users).
+   - Install it just like any other program (Next, Next, Finish).
+
+2. **VS Code** (Optional but recommended): A text editor to view the code.
+   - Go to: https://code.visualstudio.com/
+   - Download and install it.
+
+---
+
+### Step 2: Open the Project 📂
+
+1. If you received this as a ZIP file, **unzip/extract** it first.
+2. Open **VS Code**.
+3. Click **File** > **Open Folder...** (or Open on Mac).
+4. Select this project folder (`CampusBarterWeb-2`).
+
+Now you should see all the files on the left side of the screen.
+
+---
+
+### Step 3: The Command Center (Terminal) 💻
+
+We need to type some commands to tell the computer what to do.
+
+1. In VS Code, look at the top menu bar.
+2. Click **Terminal** > **New Terminal**.
+3. A panel will open at the bottom. This is where you type commands.
+
+---
+
+### Step 4: Install Dependencies 📦
+
+Think of this like a LEGO set. You have the instruction manual (the code), but you need the actual bricks. This command fetches all the bricks.
+
+1. Click inside the Terminal panel at the bottom.
+2. Type this exactly and press **Enter**:
+
+   ```bash
+   npm install
+   ```
+
+3. You will see a lot of text scrolling and loading bars. Wait for it to finish. It's done when it lets you type again.
+
+---
+
+### Step 5: Check the Keys 🔑 (.env)
+
+This project uses a database and other services that need secret passwords. These are stored in a file called `.env`.
+
+1. Look at the file list on the left.
+2. Check if you see a file named `.env`.
+3. **If it's there**: Great! You are ready.
+4. **If it's NOT there**:
+   - Ask your friend to send you the content for the `.env` file.
+   - Right-click in the file list > New File.
+   - Name it `.env`
+   - Paste the secrets they gave you inside and save (Ctrl+S or Cmd+S).
+
+   *Note: It usually looks like `DATABASE_URL=postgres://...`*
+
+---
+
+### Step 6: Start the Engine! 🚀
+
+Now we run the website.
+
+1. In the Terminal, type this command and press **Enter**:
+
+   ```bash
+   npm run dev
+   ```
+
+2. You should see text saying the server started, likely on **port 5001**.
+
+---
+
+### Step 7: See it in Action 🌐
+
+1. Open your web browser (Chrome, Safari, etc.).
+2. In the address bar, type:
+   
+   http://localhost:5001
+
+3. Press Enter. You should see the website! 🎉
+
+---
+
+### Quick Tips 💡
+
+- **To Stop**: Click in the terminal and press `Ctrl + C` to stop the server.
+- **Errors?**: If you see red text, read it carefully. Usually, it means a file is missing (like `.env`) or something is already running on that port.
+
+Good luck! You're basically a hacker now. 😎
