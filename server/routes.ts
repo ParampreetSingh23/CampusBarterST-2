@@ -9,9 +9,11 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 
 if (!process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET environment variable must be set");
@@ -349,6 +351,241 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Ai Description Generation Endpoint
+  app.post('/api/items/generate-description', authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ message: "AI features are currently unavailable (Missing API Key)." });
+      }
+
+      const { title, category, expectedExchange, itemType } = req.body;
+
+      if (!title) {
+        return res.status(400).json({ message: "Title is required for description generation." });
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+      let prompt = `Write a catchy, highly detailed, and engaging product description for an item being listed on a university campus marketplace. 
+      The item's title is: "${title}".`;
+
+      if (category) prompt += `\nIt falls under the category: "${category}".`;
+      if (itemType === 'sell') {
+        prompt += `\nThe item is being sold.`;
+      } else if (itemType === 'barter') {
+        prompt += `\nThe item is being offered for barter.`;
+        if (expectedExchange) {
+          prompt += ` The owner is looking to trade it in exchange for: "${expectedExchange}". Mention that they are open to this trade in a friendly way.`;
+        }
+      }
+
+      prompt += `\nOutput ONLY the description itself. Make it sound enthusiastic but realistic. Keep it under 150 words. Do NOT include pricing information, just describe the item's potential condition, features, and appeal to a student. Format it nicely (e.g., you can use bullet points or short paragraphs).`;
+
+      const result = await model.generateContent(prompt);
+      const outputText = result.response.text();
+
+      res.status(200).json({ description: outputText.trim() });
+    } catch (error) {
+      console.error('AI Generation error:', error);
+      res.status(500).json({ message: 'Failed to generate description.' });
+    }
+  });
+
+  // Ai Exchange Value Estimator Endpoint
+  app.post('/api/items/estimate-value', authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ message: "AI features are currently unavailable (Missing API Key)." });
+      }
+
+      const { title, description, category } = req.body;
+
+      if (!title) {
+        return res.status(400).json({ message: "Title is required to estimate value." });
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+      let prompt = `Act as an expert appraiser for a university campus marketplace where students barter items.
+      A student is trying to trade the following item:
+      Title: "${title}"`;
+
+      if (category) prompt += `\nCategory: "${category}"`;
+      if (description) prompt += `\nDescription: "${description}"`;
+
+      prompt += `\n\nSuggest 3 specific, realistic, and fair items that would be an equivalent exchange for this item on a college campus. 
+      Output ONLY a comma-separated list of the 3 items, in a single sentence. Keep it very concise (e.g., "A math textbook, a mini fridge, or a laptop charger"). Do not include any introductory or concluding text.`;
+
+      const result = await model.generateContent(prompt);
+      const outputText = result.response.text();
+
+      res.status(200).json({ expectedExchange: outputText.trim() });
+    } catch (error) {
+      console.error('AI Value Estimation error:', error);
+      res.status(500).json({ message: 'Failed to estimate value.' });
+    }
+  });
+
+  // Admin maintenance endpoint for generating missing images
+  app.post('/api/admin/generate-missing-images', authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ message: "AI features are currently unavailable (Missing API Key)." });
+      }
+
+      console.log('Starting missing images generation scan...');
+
+      const allItems = await storage.getAllItems();
+      let updatedCount = 0;
+      let skippedCount = 0;
+      let fallbackCount = 0;
+
+      // Helper to check if a URL is broken
+      const isUrlBroken = async (url: string) => {
+        if (!url) return true;
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          // Try a simple HEAD request to see if the image exists
+          const response = await fetch(url, { method: 'HEAD', signal: controller.signal });
+          clearTimeout(timeoutId);
+          return !response.ok; // If response is not ok (like 404), it is broken
+        } catch (e) {
+          return true; // if fetch fails (e.g., abort timeout, DNS error), consider it broken
+        }
+      };
+
+      for (const item of allItems) {
+        // Validate imageUrl
+        const broken = await isUrlBroken(item.imageUrl);
+        if (!broken) {
+          skippedCount++;
+          continue; // Image is good!
+        }
+
+        console.log(`Generating image for broken/missing item ID: ${item.id} - ${item.title}`);
+
+        // 1. Generate Prompt using gemini-2.5-flash
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const promptModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+        let promptText = `Generate a highly detailed and descriptive image generation prompt for a product photo of a "${item.title}".`;
+        if (item.category) promptText += ` The item category is "${item.category}".`;
+        if (item.description) promptText += ` Description: "${item.description.substring(0, 50)}".`;
+        promptText += ` Make it a clean, professional, aesthetic product shot suitable for an ecommerce marketplace. Output ONLY the image generation prompt text.`;
+
+        let imagePrompt = "";
+        try {
+          const promptResult = await promptModel.generateContent(promptText);
+          imagePrompt = promptResult.response.text().trim();
+        } catch (promptError) {
+          console.error("Failed to generate image prompt via Gemini, using fallback:", promptError);
+          imagePrompt = `A high quality photo of a ${item.title}`;
+        }
+
+        // 2. Attempt Imagen Generation
+        let finalImageUrl = "";
+        try {
+          const modelUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+
+          const imagenResponse = await fetch(modelUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              instances: [{ prompt: imagePrompt }],
+              parameters: { sampleCount: 1 }
+            })
+          });
+
+          if (!imagenResponse.ok) {
+            throw new Error(`Imagen returned ${imagenResponse.status} ${imagenResponse.statusText}`);
+          }
+
+          const imagenData = await imagenResponse.json();
+          if (imagenData.predictions && imagenData.predictions[0]) {
+            const base64Str = imagenData.predictions[0].bytesBase64Encoded;
+
+            // Ensure items upload directory exists
+            const baseUploadsDir = path.join(__dirname, '..', 'uploads');
+            const itemsUploadDir = path.join(baseUploadsDir, 'items');
+            if (!fs.existsSync(baseUploadsDir)) fs.mkdirSync(baseUploadsDir, { recursive: true });
+            if (!fs.existsSync(itemsUploadDir)) fs.mkdirSync(itemsUploadDir, { recursive: true });
+
+            const filename = `img_${item.id}_${Date.now()}.png`;
+            const filepath = path.join(itemsUploadDir, filename);
+            fs.writeFileSync(filepath, Buffer.from(base64Str, 'base64'));
+            finalImageUrl = `/uploads/items/${filename}`;
+          } else {
+            throw new Error("Missing prediction data");
+          }
+        } catch (imagenError) {
+          console.log(`Imagen generation failed (likely free tier constraint) for item ${item.id}. Falling back to Unsplash.`);
+          fallbackCount++;
+          // Unsplash fallback
+          const searchTerms = encodeURIComponent(item.category || item.title || "object");
+          finalImageUrl = `https://images.unsplash.com/featured/800x600/?${searchTerms}`;
+        }
+
+        // 3. Update Database
+        if (finalImageUrl) {
+          await storage.updateItem(item.id.toString(), { imageUrl: finalImageUrl });
+          updatedCount++;
+        }
+      }
+
+      res.status(200).json({
+        message: "Missing images generator complete",
+        stats: { updated: updatedCount, skipped: skippedCount, fallbacks: fallbackCount }
+      });
+
+    } catch (error) {
+      console.error('Admin generate images error:', error);
+      res.status(500).json({ message: 'Failed to run image generation task.' });
+    }
+  });
+
+  // Admin Dashboard: Fetch all users
+  app.get('/api/admin/users', authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const dbUser = await storage.getUserById(req.userId!);
+      if (dbUser?.role !== 'admin') {
+        return res.status(403).json({ message: 'Forbidden: Admin access required.' });
+      }
+
+      // Remove passwords before sending to the client
+      const allUsers = await storage.getAllUsers();
+      const safeUsers = allUsers.map(u => {
+        const { password, ...rest } = u;
+        return rest;
+      });
+      return res.status(200).json(safeUsers);
+    } catch (error) {
+      console.error('Fetch users error:', error);
+      res.status(500).json({ message: 'Failed to fetch users.' });
+    }
+  });
+
+  // Admin Dashboard: Delete a specific item
+  app.delete('/api/admin/items/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
+    try {
+      const dbUser = await storage.getUserById(req.userId!);
+      if (dbUser?.role !== 'admin') {
+        return res.status(403).json({ message: 'Forbidden: Admin access required.' });
+      }
+
+      await storage.deleteItem(req.params.id);
+      res.status(200).json({ message: 'Item deleted successfully.' });
+    } catch (error) {
+      console.error('Admin delete item error:', error);
+      res.status(500).json({ message: 'Failed to delete item.' });
+    }
+  });
+
   // Serve uploaded files
   app.get('/uploads/messages/:filename', authMiddleware, (req: AuthRequest, res: Response) => {
     const filepath = path.join(uploadsDir, req.params.filename);
@@ -357,6 +594,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  // Seed Admin User
+  const seedAdmin = async () => {
+    try {
+      const adminEmail = 'admin@gmail.com';
+      const existingAdmin = await storage.getUserByEmail(adminEmail);
+      if (!existingAdmin) {
+        console.log(`Seeding initial admin user: ${adminEmail}`);
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        await storage.createUser({
+          name: 'Super Admin',
+          email: adminEmail,
+          password: hashedPassword,
+          collegeId: 'admin-college-id',
+          role: 'admin'
+        });
+        console.log('Successfully seeded admin user.');
+      }
+    } catch (e) {
+      console.error('Failed to seed admin user:', e);
+    }
+  };
+
+  // Fire off the seed async process (we don't wait to unblock server startup)
+  seedAdmin();
 
   return httpServer;
 }

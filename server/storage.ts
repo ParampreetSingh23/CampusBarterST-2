@@ -1,4 +1,4 @@
-import { 
+import {
   users, items, messages,
   type User, type InsertUser,
   type Item, type InsertItem,
@@ -11,13 +11,14 @@ export interface IStorage {
   getUserById(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  
+  getAllUsers(): Promise<User[]>;
+
   getAllItems(): Promise<(Item & { user: User })[]>;
   getItemById(id: string): Promise<(Item & { user: User }) | undefined>;
   createItem(item: InsertItem): Promise<Item>;
   updateItem(id: string, item: Partial<InsertItem>): Promise<Item | undefined>;
   deleteItem(id: string): Promise<void>;
-  
+
   getMessagesByItemId(itemId: string, userId: string): Promise<(Message & { sender: User })[]>;
   getUserMessages(userId: string): Promise<(Message & { sender: User; receiver: User; item: Item })[]>;
   createMessage(message: InsertMessage): Promise<Message>;
@@ -42,13 +43,17 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
   async getAllItems(): Promise<(Item & { user: User })[]> {
     const result = await db
       .select()
       .from(items)
       .leftJoin(users, eq(items.userId, users.id))
       .orderBy(desc(items.createdAt));
-    
+
     return result.map(row => ({
       ...row.items,
       user: row.users!
@@ -61,9 +66,9 @@ export class DatabaseStorage implements IStorage {
       .from(items)
       .leftJoin(users, eq(items.userId, users.id))
       .where(eq(items.id, id));
-    
+
     if (result.length === 0) return undefined;
-    
+
     return {
       ...result[0].items,
       user: result[0].users!
@@ -106,7 +111,7 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(messages.createdAt);
-    
+
     return result.map(row => ({
       ...row.messages,
       sender: row.users!
@@ -125,14 +130,14 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(items, eq(messages.itemId, items.id))
       .where(or(eq(messages.senderId, userId), eq(messages.receiverId, userId)))
       .orderBy(desc(messages.createdAt));
-    
+
     const messagesWithAll = await Promise.all(
       result.map(async (row) => {
         const [receiverData] = await db
           .select()
           .from(users)
           .where(eq(users.id, row.message.receiverId));
-        
+
         return {
           ...row.message,
           sender: row.sender!,
@@ -141,7 +146,7 @@ export class DatabaseStorage implements IStorage {
         };
       })
     );
-    
+
     return messagesWithAll;
   }
 

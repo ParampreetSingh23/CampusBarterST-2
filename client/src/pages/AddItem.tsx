@@ -28,7 +28,8 @@ import { Navbar } from '@/components/Navbar';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Wand2, Loader2, Sparkles } from 'lucide-react';
+import { useState } from 'react';
 
 const CATEGORIES = ['Books', 'Electronics', 'Furniture', 'Clothing', 'Sports', 'Other'];
 
@@ -79,6 +80,105 @@ export default function AddItem() {
   });
 
   const itemType = form.watch('itemType');
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+  const [isEstimating, setIsEstimating] = useState(false);
+
+  const handleEstimateValue = async () => {
+    const title = form.getValues('title');
+    const description = form.getValues('description');
+    const category = form.getValues('category');
+
+    if (!title) {
+      toast({
+        title: "Title Required",
+        description: "Please enter an item title first so the AI knows what to estimate.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsEstimating(true);
+    try {
+      const res = await apiRequest('POST', '/api/items/estimate-value', {
+        title,
+        description,
+        category
+      });
+
+      if (!res.ok) {
+        if (res.status === 503) {
+          throw new Error("AI features are currently unavailable (Missing API Key).");
+        }
+        throw new Error("Failed to estimate value");
+      }
+
+      const data = await res.json();
+      console.log("AI Estimate Value response data:", data);
+      form.setValue('expectedExchange', data.expectedExchange, { shouldValidate: true });
+
+      toast({
+        title: "Estimation Complete",
+        description: "AI suggested fair trades successfully!",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to estimate value. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEstimating(false);
+    }
+  };
+
+  const handleGenerateDescription = async () => {
+    const title = form.getValues('title');
+    const category = form.getValues('category');
+    const expectedExchange = form.getValues('expectedExchange');
+    const currentItemType = form.getValues('itemType');
+
+    if (!title) {
+      toast({
+        title: "Title Required",
+        description: "Please enter an item title first so the AI knows what to describe.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingDesc(true);
+    try {
+      const res = await apiRequest('POST', '/api/items/generate-description', {
+        title,
+        category,
+        expectedExchange,
+        itemType: currentItemType
+      });
+
+      if (!res.ok) {
+        if (res.status === 503) {
+          throw new Error("AI features are currently unavailable (Missing API Key). Please ask the administrator to configure it.");
+        }
+        throw new Error("Failed to generate description");
+      }
+
+      const data = await res.json();
+      form.setValue('description', data.description, { shouldValidate: true });
+
+      toast({
+        title: "Description Generated",
+        description: "AI description generated successfully!",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate description. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingDesc(false);
+    }
+  };
 
   const createItemMutation = useMutation({
     mutationFn: async (data: ItemFormValues) => {
@@ -118,10 +218,10 @@ export default function AddItem() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="container mx-auto px-6 py-8 max-w-3xl">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           className="mb-6 -ml-3"
           onClick={() => setLocation('/dashboard')}
           data-testid="button-back"
@@ -145,10 +245,10 @@ export default function AddItem() {
                     <FormItem>
                       <FormLabel>Item Title</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="e.g., Calculus Textbook 5th Edition" 
+                        <Input
+                          placeholder="e.g., Calculus Textbook 5th Edition"
                           data-testid="input-title"
-                          {...field} 
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
@@ -161,13 +261,30 @@ export default function AddItem() {
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Description</FormLabel>
+                      <div className="flex items-center justify-between">
+                        <FormLabel>Description</FormLabel>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleGenerateDescription}
+                          disabled={isGeneratingDesc || !form.watch('title')}
+                          className="h-8 text-xs font-medium"
+                        >
+                          {isGeneratingDesc ? (
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          ) : (
+                            <Wand2 className="mr-2 h-3 w-3 text-primary" />
+                          )}
+                          Make with AI
+                        </Button>
+                      </div>
                       <FormControl>
-                        <Textarea 
-                          placeholder="Describe your item, its condition, and any important details..." 
+                        <Textarea
+                          placeholder="Describe your item, its condition, and any important details... or use AI to generate one!"
                           className="min-h-[120px]"
                           data-testid="input-description"
-                          {...field} 
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
@@ -208,10 +325,10 @@ export default function AddItem() {
                       <FormItem>
                         <FormLabel>Image URL</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="https://example.com/image.jpg" 
+                          <Input
+                            placeholder="https://example.com/image.jpg"
                             data-testid="input-image-url"
-                            {...field} 
+                            {...field}
                           />
                         </FormControl>
                         <FormMessage />
@@ -230,8 +347,8 @@ export default function AddItem() {
                           {field.value === 'barter' ? 'Barter Item' : 'Sell Item'}
                         </FormLabel>
                         <FormDescription>
-                          {field.value === 'barter' 
-                            ? 'Looking to trade for another item' 
+                          {field.value === 'barter'
+                            ? 'Looking to trade for another item'
                             : 'Selling for a fixed price'
                           }
                         </FormDescription>
@@ -255,12 +372,12 @@ export default function AddItem() {
                       <FormItem>
                         <FormLabel>Price ($)</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="number" 
+                          <Input
+                            type="number"
                             step="0.01"
-                            placeholder="29.99" 
+                            placeholder="29.99"
                             data-testid="input-price"
-                            {...field} 
+                            {...field}
                           />
                         </FormControl>
                         <FormDescription>Enter the selling price in dollars</FormDescription>
@@ -274,12 +391,29 @@ export default function AddItem() {
                     name="expectedExchange"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Looking to trade for</FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Looking to trade for</FormLabel>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleEstimateValue}
+                            disabled={isEstimating || !form.watch('title')}
+                            className="h-8 text-xs font-medium"
+                          >
+                            {isEstimating ? (
+                              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                            ) : (
+                              <Sparkles className="mr-2 h-3 w-3 text-primary" />
+                            )}
+                            Estimate Fair Trade
+                          </Button>
+                        </div>
                         <FormControl>
-                          <Input 
-                            placeholder="e.g., Biology textbook, Laptop charger" 
+                          <Input
+                            placeholder="e.g., Biology textbook, Laptop charger"
                             data-testid="input-expected-exchange"
-                            {...field} 
+                            {...field}
                           />
                         </FormControl>
                         <FormDescription>What would you like in exchange?</FormDescription>
@@ -290,16 +424,16 @@ export default function AddItem() {
                 )}
 
                 <div className="flex gap-4 pt-4">
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     className="flex-1"
                     disabled={createItemMutation.isPending}
                     data-testid="button-submit"
                   >
                     {createItemMutation.isPending ? 'Posting...' : 'Post Item'}
                   </Button>
-                  <Button 
-                    type="button" 
+                  <Button
+                    type="button"
                     variant="outline"
                     onClick={() => setLocation('/dashboard')}
                     data-testid="button-cancel"

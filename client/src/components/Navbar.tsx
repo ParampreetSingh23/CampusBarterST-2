@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, MessageSquare, LogOut } from 'lucide-react';
+import { Plus, MessageSquare, LogOut, ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 
 export function Navbar() {
@@ -25,28 +25,28 @@ export function Navbar() {
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-6 h-16 flex items-center justify-between max-w-7xl">
-        <Link href="/dashboard" className="flex items-center gap-2 hover-elevate active-elevate-2 px-3 py-2 rounded-lg -ml-3" data-testid="link-home">
-          <span className="font-heading text-2xl font-bold text-primary">Campus Barter</span>
+      <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-between max-w-7xl">
+        <Link href="/dashboard" className="flex items-center gap-2 hover-elevate active-elevate-2 px-2 sm:px-3 py-2 rounded-lg -ml-2 sm:-ml-3" data-testid="link-home">
+          <span className="font-heading text-xl sm:text-2xl font-bold text-primary">Campus Barter</span>
         </Link>
 
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+        <div className="flex items-center gap-2 sm:gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setLocation('/messages')}
             data-testid="button-messages"
           >
             <MessageSquare className="h-5 w-5" />
           </Button>
-          
-          <Button 
+
+          <Button
             onClick={() => setLocation('/items/new')}
-            data-testid="button-post-item" 
-            className="gap-2"
+            data-testid="button-post-item"
+            className="gap-2 px-2 sm:px-4"
           >
             <Plus className="h-4 w-4" />
-            Post Item
+            <span className="hidden sm:inline">Post Item</span>
           </Button>
 
           <DropdownMenu>
@@ -66,6 +66,12 @@ export function Navbar() {
                   <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                 </div>
               </div>
+              {user?.role === 'admin' && (
+                <DropdownMenuItem onClick={() => setLocation('/admin')} data-testid="button-admin">
+                  <ShieldAlert className="mr-2 h-4 w-4" />
+                  Admin Panel
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={logout} data-testid="button-logout">
                 <LogOut className="mr-2 h-4 w-4" />
                 Log out
